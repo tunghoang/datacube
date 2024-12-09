@@ -1,0 +1,15 @@
+docker container create -it --name datacube \
+-v /home/admin/workspace/datacube/tests:/tests \
+-v /home/admin/workspace/datacube/Src:/app \
+-v /mnt/DISK1TB/indra-ht:/data \
+-e DB_HOSTNAME=postgis \
+-e DB_USERNAME=dbuser \
+-e DB_PASSWORD=dbpassword \
+-e DB_DATABASE=datacube \
+-e TC_DRIVER_PATH=/data/optimized/tiles.sqlite \
+--link postgis:postgis \
+--link mysql:mysql \
+-p 9000:8888 \
+--user 1000:1000 \
+odc:v2.3 \
+python -m indra.server

@@ -1,0 +1,9 @@
+docker container create -it --name terracotta \
+-v /home/admin/workspace/datacube/tests:/tests \
+-v /home/admin/workspace/datacube/Src:/app \
+-v /mnt/DISK1TB/indra-ht:/data \
+-e TC_DRIVER_PATH=mysql://root:dbpassword@mysql/terracotta \
+--link mysql:mysql \
+--user 1000:1000 \
+odc:v2.3 \
+terracotta serve -d mysql://root:dbpassword@mysql/terracotta --port 7000 --allow-all-ips

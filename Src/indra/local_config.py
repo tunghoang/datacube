@@ -1,0 +1,23 @@
+__BASEPATH='/data'
+__TMPPATH='/data/TMPPATH'
+__PRODUCT_LIST=[
+        'CAPE',
+        'EWSS',
+        'IE',
+        'ISOR',
+        'KX',
+        'PEV',
+        'R250',
+        'R500',
+        'R850',
+        'SLHF',
+        'SLOR',
+        'SSHF',
+        'TCLW',
+        'TCW',
+        'TCWV',
+        'U250',
+        'U850',
+        'V250',
+        'V850',
+    ]
