@@ -167,5 +167,13 @@ def add_dataset(path):
 
 
 if __name__ == '__main__':
-    data_folder = f'{__BASEPATH}/DATA/DATA_10KM_daily/Integrated'
-    add_dataset(data_folder)
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument('--path')
+    args = parser.parse_args()
+    #data_folder = f'{__BASEPATH}/DATA/DATA_10KM_daily/Integrated'
+    #add_dataset(data_folder)
+    if args.path:
+        add_dataset(args.path)
+    else:
+        parser.print_help()

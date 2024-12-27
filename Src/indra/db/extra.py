@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, delete
+from sqlalchemy import create_engine, delete, text
 from os import environ
 
 from sqlalchemy import Column
@@ -70,6 +70,28 @@ def extra_delete_users(userIds: List[int]):
     stm = delete(User).where(User.id.in_(userIds))
     print(stm)
     extradb_conn().execute(stm)
+
+def extra_search_location(query: str):
+    sql = f'''
+SELECT gid as "gid", 
+    gid_1 as "gid_1", 
+    gid_2 as "gid_2", 
+    gid_3 as "gid_3", 
+    name_1 as "name_1", 
+    name_2 as "name_2", 
+    name_3 as "name_3"
+    from administrative_unit 
+WHERE concat(name_3, name_2, name_1,varname_1, varname_2, varname_3) like '%{query}%' limit 100;'''
+    print(sql)
+    conn = extradb_conn()
+    print('conn', conn)
+    cursor = conn.execute(text(sql))
+
+    print('cursor', cursor)
+
+    locations = cursor.fetchall()
+    cursor.close()
+    return locations
 
 if __name__ == '__main__':
     from argparse import ArgumentParser

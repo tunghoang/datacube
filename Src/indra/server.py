@@ -1,6 +1,7 @@
 import sys
 sys.path.append('/data/lib')
 sys.path.append('./indra')
+import traceback
 import os
 import jwt
 import pathlib
@@ -16,6 +17,7 @@ from .models.Product import Product
 from .models.LoginData import LoginData
 from .models.UserData import UserData
 from .models.DeleteUserData import DeleteUserData
+from .models.LocationData import LocationData
 from .add_product import add_product
 from .add_dataset import add_dataset
 from .del_dataset import del_datasets
@@ -25,7 +27,7 @@ from typing import List
 from urllib.parse import unquote
 
 from .db import db_get_datetime_limits
-from .db.extra import extra_authenticate, extra_list_users, extra_new_user, extra_delete_users
+from .db.extra import extra_authenticate, extra_list_users, extra_new_user, extra_delete_users, extra_search_location
 
 from .constants import SALT, JWT_ALGORITHM, PUBLIC_GET_ROUTES, PUBLIC_POST_ROUTES
 
@@ -80,33 +82,13 @@ def get_product(product:str = "", resolution:str='10', frequency:str = "daily", 
         raise HTTPException(status_code=400, detail="'from_time' and 'to_time' cannot be null")
     print("--- datasets ---")
     with Datacube() as odc:
-        datasets = search_datasets(odc, f"{product}_{resolution}KM_{frequency}", from_time=from_time, to_time=to_time)
+        try:
+            datasets = search_datasets(odc, f"{product}_{resolution}KM_{frequency}", from_time=from_time, to_time=to_time)
+        except ValueError as e:
+            traceback.print_exc()
+            print("EXEPTION:", e)
+            raise HTTPException(status_code=404, detail=f"{e}")
     return datasets
-
-@router.get('/datasets/download/{id_}')
-async def download_dataset(id_:str):
-    print(id_)
-    with Datacube() as odc:
-        dataset = odc.index.datasets.get(id_)
-        if dataset is None:
-            raise HTTPException(status_code=400, detail="No datasets found")
-        file_loc = str(dataset.local_path).replace('DATASET_DOC','DATA').replace('dataset.yaml', 'tif')
-        print(file_loc)
-        return FileResponse(file_loc)
-
-@router.get('/datasets/download/{product}/{resolution}/{frequency}/{time_str}')
-async def get_dataset(product:str = "", resolution:str='10', frequency:str = "daily", time_str:str = ""):
-    time_str_ = unquote(time_str)
-    time_str_ = '2019-09-09T00:00:00'
-    from_time = time_str_
-    to_time = time_str_
-    with Datacube() as odc:
-        datasets = odc.find_datasets(product=f"{product}_{resolution}KM_{frequency}", time=(from_time, to_time), limit=1)
-        if len(datasets) == 0:
-            raise HTTPException(status_code=400, detail="No datasets found")
-        dataset = datasets[0]
-        file_loc = str(dataset.local_path).replace('DATASET_DOC','DATA').replace('dataset.yaml', 'tif')
-        return FileResponse(file_loc)
 
 @router.get('/datasets/time_limits/{product}/{resolution}/{frequency}')
 async def get_dataset_limits(product:str = '', resolution:str='10', frequency:str='daily'):
@@ -170,10 +152,33 @@ async def delete_datasets(request: Request):
         
     return {"success": True, "ids": payload['ids']}
 
+@router.get('/datasets/download/{id_}')
+async def download_dataset(id_:str):
+    with Datacube() as odc:
+        dataset = odc.index.datasets.get(id_)
+        if dataset is None:
+            raise HTTPException(status_code=400, detail="No datasets found")
+        file_loc = str(dataset.local_path).replace('DATASET_DOC','DATA').replace('dataset.yaml', 'tif')
+        print(file_loc)
+        return FileResponse(file_loc)
+
+@router.get('/datasets/download/{product}/{resolution}/{frequency}/{time_str}')
+async def get_dataset(product:str = "", resolution:str='10', frequency:str = "daily", time_str:str = ""):
+    time_str_ = unquote(time_str)
+    time_str_ = '2019-09-09T00:00:00'
+    from_time = time_str_
+    to_time = time_str_
+    with Datacube() as odc:
+        datasets = odc.find_datasets(product=f"{product}_{resolution}KM_{frequency}", time=(from_time, to_time), limit=1)
+        if len(datasets) == 0:
+            raise HTTPException(status_code=400, detail="No datasets found")
+        dataset = datasets[0]
+        file_loc = str(dataset.local_path).replace('DATASET_DOC','DATA').replace('dataset.yaml', 'tif')
+        return FileResponse(file_loc)
 
 @router.post('/users/login')
 async def authenticate(loginData: LoginData):
-    password_hash = hash_password(loginData.p)
+    password_hash = hash_password(loginData.p, SALT)
     userRecord, code = extra_authenticate(loginData.u, password_hash)
     print(userRecord)
     if code == -1:
@@ -193,7 +198,7 @@ async def get_users(limit: int=10, offset: int=0):
 @router.post('/users')
 async def new_users(udata: UserData):
     try:
-        password_hash = hash_password(udata.password)
+        password_hash = hash_password(udata.password, SALT)
         extra_new_user(udata.email, udata.fullname, password_hash)
         return {'success': True, 'message': 'success'}
     except Exception as e:
@@ -206,6 +211,16 @@ async def delete_users(delUserData: DeleteUserData):
         extra_delete_users(userIds)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{e}")
+
+@router.post('/locations')
+async def handle_locations(locationData: LocationData):
+    try:
+        action = locationData.action
+        query = locationData.query
+        locations = extra_search_location(query)
+        return locations
+    except Exception as e:
+        raise HTTPException(status_code=500, defail=f"{e}")
 
 import terracotta as tc
 tc.update_settings(DRIVER_PATH='mysql://root:dbpassword@mysql/terracotta')
