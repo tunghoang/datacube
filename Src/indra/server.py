@@ -4,12 +4,13 @@ sys.path.append('./indra')
 import traceback
 import os
 import jwt
+import numpy as np
 import pathlib
 import aiofiles
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException,UploadFile, File, Form, Query, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.wsgi import WSGIMiddleware
 
 from datacube import Datacube
@@ -18,6 +19,7 @@ from .models.LoginData import LoginData
 from .models.UserData import UserData
 from .models.DeleteUserData import DeleteUserData
 from .models.LocationData import LocationData
+from .models.AnalyzeData import AnalyzeData
 from .add_product import add_product
 from .add_dataset import add_dataset
 from .del_dataset import del_datasets
@@ -27,9 +29,11 @@ from typing import List
 from urllib.parse import unquote
 
 from .db import db_get_datetime_limits
-from .db.extra import extra_authenticate, extra_list_users, extra_new_user, extra_delete_users, extra_search_location
+from .db.extra import extra_authenticate, extra_list_users, extra_new_user, extra_delete_users, extra_search_location, extra_get_location
 
 from .constants import SALT, JWT_ALGORITHM, PUBLIC_GET_ROUTES, PUBLIC_POST_ROUTES
+
+from .analytics import aggregate
 
 from terracotta.server.app import app as terracottaApp
 app = FastAPI()
@@ -115,6 +119,7 @@ async def authorize(request: Request, call_next):
             return await call_next(request)
         except jwt.exceptions.InvalidTokenError as e:
             print("Invalid token", e, token)
+            Response(status_code=401, content='{"detail": "Not authorized"}')
 
     return Response(status_code=401)
 
@@ -162,10 +167,26 @@ async def download_dataset(id_:str):
         print(file_loc)
         return FileResponse(file_loc)
 
+@router.get('/datasets/csv/{product}/{resolution}/{frequency}/{time_str}')
+async def download_csv(product:str = "", resolution:str='10', frequency:str='daily', time_str:str = ''):
+    with Datacube() as odc:
+        ds = odc.load(f'{product}_{resolution}KM_{frequency}', measurements=["Precipitation"], time=(time_str, ))
+        print(ds)
+        if ds is None:
+            raise HTTPException(status_code=400, detail="No datasets found")
+        df = ds.to_dataframe()
+        print(df.reset_index(inplace=True))
+        return StreamingResponse(
+            iter([df.to_csv(index=False)]), 
+            media_type="text/csv", 
+            headers={"Content-Disposition": f"attachment; filename=data.csv"}
+        )
+
+
 @router.get('/datasets/download/{product}/{resolution}/{frequency}/{time_str}')
 async def get_dataset(product:str = "", resolution:str='10', frequency:str = "daily", time_str:str = ""):
     time_str_ = unquote(time_str)
-    time_str_ = '2019-09-09T00:00:00'
+    #time_str_ = '2019-09-09T00:00:00'
     from_time = time_str_
     to_time = time_str_
     with Datacube() as odc:
@@ -189,6 +210,12 @@ async def authenticate(loginData: LoginData):
         encoded_key = jwt.encode(userRecord, SALT, algorithm=JWT_ALGORITHM)
         return {"access_token": encoded_key}
     raise HTTPException(status_code=500, detail="Unexpected situation")
+
+@router.post('/users/register')
+async def register(udata: UserData):
+    password_hash = hash_password(udata.password, SALT)
+    extra_new_user(udata.email, udata.fullname, password_hash)
+    return {'success': True, 'message': 'success'}
 
 @router.get('/users')
 async def get_users(limit: int=10, offset: int=0):
@@ -216,11 +243,43 @@ async def delete_users(delUserData: DeleteUserData):
 async def handle_locations(locationData: LocationData):
     try:
         action = locationData.action
-        query = locationData.query
-        locations = extra_search_location(query)
-        return locations
+        if action == 'search':
+            query = locationData.query
+            locations = extra_search_location(query)
+            return locations
+        elif action == 'get':
+            gid = locationData.gid
+            level = locationData.level
+            locations = extra_get_location(level, gid)
+            print(locations)
+            return locations
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, defail=f"{e}")
+
+@router.post('/analyze')
+async def analyze(analyzeData: AnalyzeData):
+    try:
+        product = analyzeData.product
+        gid = analyzeData.gid
+        level = analyzeData.level
+        _from = analyzeData.fromDate
+        to = analyzeData.to
+        print(product, gid, level, _from, to)
+        return list(aggregate(lambda x: dict(samples=len(x), nonzeros=len([i for i in x if i > 0]), max=float(x.max() if len(x) else 0), min=float(x.min() if len(x) else 0), avg=float(x.mean() if len(x) else 0)), (_from, to), gid, level, product))
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{e}")
+
+@router.get('/describe/{product}/{language}')
+async def describe(product:str = "", language:str = 'vi'):
+    if product == 'deepModel':
+        return dict(description="deepModel is rain product created by processing HIMAWARI dataset")
+    if product == 'AWS':
+        return dict(description="AWS rain product is collected from precipitation stations in Vietnam")
+    if product == 'integrated':
+        return dict(description="Integrated rain data product is a lorem ipsum dolor sit amet")
+    return dict(description="")
 
 import terracotta as tc
 tc.update_settings(DRIVER_PATH='mysql://root:dbpassword@mysql/terracotta')

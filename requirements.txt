@@ -4,33 +4,17 @@ aiobotocore[boto3,awscli]==1.0.7
 pyyaml
 wget
 requests
-datacube
-odc-stac
-odc-stats
+SQLAlchemy==1.4.54
+datacube==1.8.19
 odc-dscache
-odc-cloud[ASYNC]
-odc-ui
 odc-io
-odc-apps-dc-tools
-dask==2023.10.1
-distributed==2023.10.1
+odc-geo
+
 # Jupyter components.
 gdal
-numpy==1.24
+#numpy==1.24
 scipy
-jupyter==1.0.0
-jupyterlab==3.2.0
-ipyleaflet
-folium
-pandas==1.3.4
-xarray==0.16.0
-matplotlib
-geopandas
-scikit-image
 tqdm
-click<8.1.0
-python-dateutil==2.7.5
-sat-search
 
 # for tests
 pytest
@@ -40,3 +24,4 @@ aiofiles
 terracotta==0.7.5
 pymysql
 cryptography
+pyjwt

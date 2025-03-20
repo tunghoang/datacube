@@ -6,8 +6,10 @@ PUBLIC_GET_ROUTES = [ BASE_PREFIX+p for p in [
     '/measurements',
     '/datasets',
     '/datasets/download',
-    '/datasets/time_limits'
+    '/datasets/time_limits',
+    '/describe'
 ]]
 PUBLIC_POST_ROUTES = [ BASE_PREFIX + p for p in [
-    '/users/login'
+    '/users/login',
+    '/users/register'
 ]]

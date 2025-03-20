@@ -23,7 +23,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 
 COPY requirements.txt /conf/
-COPY products.csv /conf/
+#COPY products.csv /conf/
 RUN pip3 install --no-cache-dir --requirement /conf/requirements.txt
 
 RUN useradd admin

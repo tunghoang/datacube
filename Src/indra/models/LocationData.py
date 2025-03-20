@@ -1,6 +1,8 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 class LocationData(BaseModel):
     action: str
-    query: str
+    query: Optional[str] = None
+    gid: Optional[str] = None
+    level: Optional[int] = None
